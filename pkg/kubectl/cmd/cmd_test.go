@@ -153,6 +153,8 @@ func stringBody(body string) io.ReadCloser {
 
 func Example_printMultiContainersReplicationControllerWithWide() {
 	tf := cmdtesting.NewTestFactory()
+	defer tf.Cleanup()
+
 	ns := legacyscheme.Codecs
 
 	tf.Client = &fake.RESTClient{
@@ -203,6 +205,8 @@ func Example_printMultiContainersReplicationControllerWithWide() {
 
 func Example_printReplicationController() {
 	tf := cmdtesting.NewTestFactory()
+	defer tf.Cleanup()
+
 	ns := legacyscheme.Codecs
 
 	tf.Client = &fake.RESTClient{
@@ -252,6 +256,8 @@ func Example_printReplicationController() {
 
 func Example_printPodWithWideFormat() {
 	tf := cmdtesting.NewTestFactory()
+	defer tf.Cleanup()
+
 	ns := legacyscheme.Codecs
 
 	tf.Client = &fake.RESTClient{
@@ -290,6 +296,8 @@ func Example_printPodWithWideFormat() {
 
 func Example_printPodWithShowLabels() {
 	tf := cmdtesting.NewTestFactory()
+	defer tf.Cleanup()
+
 	ns := legacyscheme.Codecs
 
 	tf.Client = &fake.RESTClient{
@@ -423,6 +431,8 @@ func newAllPhasePodList() *api.PodList {
 
 func Example_printPodShowTerminated() {
 	tf := cmdtesting.NewTestFactory()
+	defer tf.Cleanup()
+
 	ns := legacyscheme.Codecs
 
 	tf.Client = &fake.RESTClient{
@@ -459,6 +469,8 @@ func Example_printPodShowTerminated() {
 
 func Example_printPodShowAll() {
 	tf := cmdtesting.NewTestFactory()
+	defer tf.Cleanup()
+
 	ns := legacyscheme.Codecs
 
 	tf.Client = &fake.RESTClient{
@@ -482,6 +494,8 @@ func Example_printPodShowAll() {
 
 func Example_printServiceWithLabels() {
 	tf := cmdtesting.NewTestFactory()
+	defer tf.Cleanup()
+
 	ns := legacyscheme.Codecs
 
 	tf.Client = &fake.RESTClient{
