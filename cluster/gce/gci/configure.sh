@@ -29,6 +29,7 @@ DEFAULT_CNI_SHA1="d595d3ded6499a64e8dac02466e2f5f2ce257c9f"
 DEFAULT_NPD_VERSION="v0.4.1"
 DEFAULT_NPD_SHA1="a57a3fe64cab8a18ec654f5cef0aec59dae62568"
 DEFAULT_MOUNTER_TAR_SHA="8003b798cf33c7f91320cd6ee5cec4fa22244571"
+DEFAULT_CT_SHA1="0af7a8981074d84331f969f1616176a9b60aa22e"
 ###
 
 # Use --retry-connrefused opt only if it's supported by curl.
@@ -212,6 +213,17 @@ function install-cni-binaries {
   rm -f "${KUBE_HOME}/${cni_tar}"
 }
 
+function download-conntrack-binaries {
+  if [ -e "${KUBE_BIN}/conntrack" ]; then
+    echo "conntrack already installed."
+    return
+  fi
+  local -r ct_sha1="${DEFAULT_CT_SHA1}"
+  echo "Downloading conntrack binary"
+  download-or-bust "${ct_sha1}" "https://storage.googleapis.com/kubernetes-release/conntrack/conntrack"
+  mv conntrack "${KUBE_BIN}"/conntrack
+}
+
 function install-kube-manifests {
   # Put kube-system pods manifests in ${KUBE_HOME}/kube-manifests/.
   local dst_dir="${KUBE_HOME}/kube-manifests"
@@ -335,6 +347,8 @@ function install-kube-binary-config {
      [[ "${NETWORK_PROVIDER:-}" == "cni" ]]; then
     install-cni-binaries
   fi
+
+    download-conntrack-binaries
 
   # Put kube-system pods manifests in ${KUBE_HOME}/kube-manifests/.
   install-kube-manifests

@@ -33,7 +33,11 @@ import (
 	utiliptables "k8s.io/kubernetes/pkg/util/iptables"
 	utilnet "k8s.io/kubernetes/pkg/util/net"
 	"k8s.io/utils/exec"
+	"os"
 )
+
+// conntrack will be downloaded to this path by the configure.sh script on the node
+const customConntrackPath = "/home/kubernetes/bin/conntrack"
 
 // HostPortManager is an interface for adding and removing hostport for a given pod sandbox.
 type HostPortManager interface {
@@ -51,6 +55,7 @@ type hostportManager struct {
 	hostPortMap    map[hostport]closeable
 	execer         exec.Interface
 	conntrackFound bool
+	conntrackPath  string
 	iptables       utiliptables.Interface
 	portOpener     hostportOpener
 	mu             sync.Mutex
@@ -65,7 +70,12 @@ func NewHostportManager(iptables utiliptables.Interface) HostPortManager {
 	}
 	h.conntrackFound = conntrack.Exists(h.execer)
 	if !h.conntrackFound {
-		glog.Warningf("The binary conntrack is not installed, this can cause failures in network connection cleanup.")
+		if _, err := os.Stat(customConntrackPath); err != nil {
+			glog.Warningf("The binary conntrack is not installed, this can cause failures in network connection cleanup.")
+		} else {
+			h.conntrackFound = true
+			h.conntrackPath = customConntrackPath
+		}
 	}
 	return h
 }
@@ -175,7 +185,7 @@ func (hm *hostportManager) Add(id string, podPortMapping *PodPortMapping, natInt
 	if hm.execer != nil && hm.conntrackFound {
 		glog.Infof("Starting to delete udp conntrack entries: %v, isIPv6 - %v", conntrackPortsToRemove, isIpv6)
 		for _, port := range conntrackPortsToRemove {
-			err = conntrack.ClearEntriesForPort(hm.execer, port, isIpv6, v1.ProtocolUDP)
+			err = conntrack.ClearEntriesForHostPort(hm.execer, hm.conntrackPath, port, isIpv6, v1.ProtocolUDP)
 			if err != nil {
 				glog.Errorf("Failed to clear udp conntrack for port %d, error: %v", port, err)
 			}

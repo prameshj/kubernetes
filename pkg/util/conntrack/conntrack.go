@@ -46,7 +46,7 @@ func parametersWithFamily(isIPv6 bool, parameters ...string) []string {
 // for the UDP connections specified by the given service IP
 func ClearEntriesForIP(execer exec.Interface, ip string, protocol v1.Protocol) error {
 	parameters := parametersWithFamily(utilnet.IsIPv6String(ip), "-D", "--orig-dst", ip, "-p", protoStr(protocol))
-	err := Exec(execer, parameters...)
+	err := Exec(execer, "", parameters...)
 	if err != nil && !strings.Contains(err.Error(), NoConnectionToDelete) {
 		// TODO: Better handling for deletion failure. When failure occur, stale udp connection may not get flushed.
 		// These stale udp connection will keep black hole traffic. Making this a best effort operation for now, since it
@@ -57,10 +57,14 @@ func ClearEntriesForIP(execer exec.Interface, ip string, protocol v1.Protocol) e
 }
 
 // Exec executes the conntrack tool using the given parameters
-func Exec(execer exec.Interface, parameters ...string) error {
-	conntrackPath, err := execer.LookPath("conntrack")
-	if err != nil {
-		return fmt.Errorf("error looking for path of conntrack: %v", err)
+func Exec(execer exec.Interface, conntrackPath string, parameters ...string) error {
+	var err error
+
+	if conntrackPath == "" {
+		conntrackPath, err = execer.LookPath("conntrack")
+		if err != nil {
+			return fmt.Errorf("error looking for path of conntrack: %v", err)
+		}
 	}
 	output, err := execer.Command(conntrackPath, parameters...).CombinedOutput()
 	if err != nil {
@@ -82,11 +86,21 @@ func Exists(execer exec.Interface) bool {
 // https://github.com/docker/docker/issues/8795
 // https://github.com/kubernetes/kubernetes/issues/31983
 func ClearEntriesForPort(execer exec.Interface, port int, isIPv6 bool, protocol v1.Protocol) error {
+	return clearPortEntriesInternal(execer, "", port, isIPv6, protocol)
+}
+
+// ClearEntriesForHostPort is similar to the ClearEntriesForPort function, but uses conntrack binary installed at a
+// custom location.
+func ClearEntriesForHostPort(execer exec.Interface, conntrackPath string, port int, isIPv6 bool, protocol v1.Protocol) error {
+	return clearPortEntriesInternal(execer, conntrackPath, port, isIPv6, protocol)
+}
+
+func clearPortEntriesInternal(execer exec.Interface, customConntrackPath string, port int, isIPv6 bool, protocol v1.Protocol) error {
 	if port <= 0 {
 		return fmt.Errorf("Wrong port number. The port number must be greater than zero")
 	}
 	parameters := parametersWithFamily(isIPv6, "-D", "-p", protoStr(protocol), "--dport", strconv.Itoa(port))
-	err := Exec(execer, parameters...)
+	err := Exec(execer, customConntrackPath, parameters...)
 	if err != nil && !strings.Contains(err.Error(), NoConnectionToDelete) {
 		return fmt.Errorf("error deleting conntrack entries for UDP port: %d, error: %v", port, err)
 	}
@@ -98,7 +112,7 @@ func ClearEntriesForPort(execer exec.Interface, port int, isIPv6 bool, protocol 
 func ClearEntriesForNAT(execer exec.Interface, origin, dest string, protocol v1.Protocol) error {
 	parameters := parametersWithFamily(utilnet.IsIPv6String(origin), "-D", "--orig-dst", origin, "--dst-nat", dest,
 		"-p", protoStr(protocol))
-	err := Exec(execer, parameters...)
+	err := Exec(execer, "", parameters...)
 	if err != nil && !strings.Contains(err.Error(), NoConnectionToDelete) {
 		// TODO: Better handling for deletion failure. When failure occur, stale udp connection may not get flushed.
 		// These stale udp connection will keep black hole traffic. Making this a best effort operation for now, since it
