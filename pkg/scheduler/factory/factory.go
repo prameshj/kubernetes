@@ -303,6 +303,7 @@ func NewConfigFactory(
 	comparer := &cacheComparer{
 		podLister:  podInformer.Lister(),
 		nodeLister: nodeInformer.Lister(),
+		pdbLister:  pdbInformer.Lister(),
 		cache:      c.schedulerCache,
 	}
 
