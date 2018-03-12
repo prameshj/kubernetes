@@ -305,6 +305,7 @@ func NewConfigFactory(
 		nodeLister: nodeInformer.Lister(),
 		pdbLister:  pdbInformer.Lister(),
 		cache:      c.schedulerCache,
+		podQueue:   c.podQueue,
 	}
 
 	ch := make(chan os.Signal, 1)
