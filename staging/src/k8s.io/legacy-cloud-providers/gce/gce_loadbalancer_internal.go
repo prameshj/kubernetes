@@ -24,7 +24,7 @@ import (
 
 	"github.com/GoogleCloudPlatform/k8s-cloud-provider/pkg/cloud"
 	compute "google.golang.org/api/compute/v1"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 	servicehelpers "k8s.io/cloud-provider/service/helpers"
@@ -35,14 +35,13 @@ const (
 	allInstances = "ALL"
 )
 
-func usesNEG(service *v1.Service) bool {
-	_, ok := service.GetAnnotations()[NEGAnnotation]
-	return ok
+func (g *Cloud) usesSubsets() bool {
+	return g.AlphaFeatureGate != nil && g.AlphaFeatureGate.Enabled(AlphaFeatureILBSubsets)
 }
 
 func (g *Cloud) ensureInternalLoadBalancer(clusterName, clusterID string, svc *v1.Service, existingFwdRule *compute.ForwardingRule, nodes []*v1.Node) (*v1.LoadBalancerStatus, error) {
-	if usesNEG(svc) {
-		// Do not manage loadBalancer for services using NEGs
+	if g.usesSubsets() {
+		klog.Infof("ensureInternalLoadBalancer skipped since Subsetting is enabled")
 		return &svc.Status.LoadBalancer, nil
 	}
 	nm := types.NamespacedName{Name: svc.Name, Namespace: svc.Namespace}
@@ -210,8 +209,8 @@ func (g *Cloud) clearPreviousInternalResources(svc *v1.Service, loadBalancerName
 // updateInternalLoadBalancer is called when the list of nodes has changed. Therefore, only the instance groups
 // and possibly the backend service need to be updated.
 func (g *Cloud) updateInternalLoadBalancer(clusterName, clusterID string, svc *v1.Service, nodes []*v1.Node) error {
-	if usesNEG(svc) {
-		// Do not manage loadBalancer for services using NEGs
+	if g.usesSubsets() {
+		klog.Infof("updateInternalLoadBalancer skipped since Subsetting is enabled")
 		return nil
 	}
 	g.sharedResourceLock.Lock()
