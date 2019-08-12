@@ -202,3 +202,7 @@ func getSvcScheme(svc *v1.Service) cloud.LbScheme {
 	}
 	return cloud.SchemeExternal
 }
+
+func getLBOptions(svc *v1.Service) (*LbOptions, error) {
+	return GetLoadBalancerAnnotationOptions(svc)
+}

@@ -18,6 +18,7 @@ package gce
 
 import (
 	"fmt"
+	"k8s.io/kubernetes/staging/src/k8s.io/apimachinery/pkg/util/json"
 
 	"k8s.io/klog"
 
@@ -47,6 +48,11 @@ const (
 
 	// This annotation did not correctly specify "alpha", so both annotations will be checked.
 	deprecatedServiceAnnotationILBBackendShare = "cloud.google.com/load-balancer-backend-share"
+
+	// ServiceAnnotationLoadBalancerOptions is annotated on a service with type LoadBalancer
+	// specifies additional options for creating the LoadBalancer.
+	// Currently, only supported with "internal" LoadBalancer.
+	ServiceAnnotationLoadBalancerOptions = "cloud.google.com/load-balancer-options"
 
 	// NetworkTierAnnotationKey is annotated on a Service object to indicate which
 	// network tier a GCP LB should use. The valid values are "Standard" and
@@ -115,4 +121,25 @@ func GetServiceNetworkTier(service *v1.Service) (cloud.NetworkTier, error) {
 	default:
 		return cloud.NetworkTierDefault, fmt.Errorf("unsupported network tier: %q", v)
 	}
+}
+
+// LbOptions represents the extra options specified when creating a
+// load balancer. Currently supported for Internal LoadBalancer.
+type LbOptions struct {
+	// name of the subnet to assign LoadBalancer VIP from
+	SubnetName string
+	// Indicates whether global access is enabled for the LoadBalancer
+	EnableGlobalAccess bool
+}
+
+func GetLoadBalancerAnnotationOptions(service *v1.Service) (*LbOptions, error) {
+	if options, ok := service.Annotations[ServiceAnnotationLoadBalancerOptions]; ok {
+		lbOptions := &LbOptions{}
+		err := json.Unmarshal([]byte(options), lbOptions)
+		if err != nil {
+			return nil, fmt.Errorf("Invalid LbOption specified, unmarshal error %s", err)
+		}
+		return lbOptions, err
+	}
+	return nil, nil
 }

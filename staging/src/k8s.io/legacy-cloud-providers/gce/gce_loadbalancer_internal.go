@@ -24,6 +24,7 @@ import (
 
 	"github.com/GoogleCloudPlatform/k8s-cloud-provider/pkg/cloud"
 	compute "google.golang.org/api/compute/v1"
+	computealpha "google.golang.org/api/compute/v0.alpha"
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -47,6 +48,15 @@ func (g *Cloud) ensureInternalLoadBalancer(clusterName, clusterID string, svc *v
 		return nil, fmt.Errorf("Invalid protocol %s, only TCP and UDP are supported", string(protocol))
 	}
 	scheme := cloud.SchemeInternal
+	options, err := getLBOptions(svc)
+	if err != nil {
+		klog.Warningf("Ignoring extra options due to error - %s", err)
+	}
+	if options != nil && g.isLegacyNetwork {
+		klog.Warningf("Internal LoadBalancer options are not supported with Legacy Networks.")
+	}
+
+	klog.Infof("OPTIONS ARE %+v", options)
 	loadBalancerName := g.GetLoadBalancerName(context.TODO(), clusterName, svc)
 	sharedBackend := shareBackendService(svc)
 	backendServiceName := makeBackendServiceName(loadBalancerName, clusterID, sharedBackend, scheme, protocol, svc.Spec.SessionAffinity)
@@ -91,14 +101,20 @@ func (g *Cloud) ensureInternalLoadBalancer(clusterName, clusterID string, svc *v
 	requestedIP := determineRequestedIP(svc, existingFwdRule)
 	ipToUse := requestedIP
 
+	subnetworkURL := g.SubnetworkURL()
+	if options != nil && options.SubnetName != "" {
+		subnetworkURL = gceSubnetworkURL("", g.networkProjectID, g.region, options.SubnetName)
+	}
 	// If the ILB already exists, continue using the subnet that it's already using.
 	// This is to support existing ILBs that were setup using the wrong subnet.
-	subnetworkURL := g.SubnetworkURL()
 	if existingFwdRule != nil && existingFwdRule.Subnetwork != "" {
 		// external LBs have an empty Subnetwork field.
+		if options.SubnetName != "" {
+			klog.Warningf("Ignoring custom subnet name for existing ILB service %s", svc.Name)
+		}
 		subnetworkURL = existingFwdRule.Subnetwork
 	}
-
+	klog.Infof("Using subnetwork URL %s", subnetworkURL)
 	var addrMgr *addressManager
 	// If the network is not a legacy network, use the address manager
 	if !g.IsLegacyNetwork() {
@@ -114,7 +130,7 @@ func (g *Cloud) ensureInternalLoadBalancer(clusterName, clusterID string, svc *v
 	if err = g.ensureInternalFirewalls(loadBalancerName, ipToUse, clusterID, nm, svc, strconv.Itoa(int(hcPort)), sharedHealthCheck, nodes); err != nil {
 		return nil, err
 	}
-
+	var expectedFwdRuleIntf interface{}
 	expectedFwdRule := &compute.ForwardingRule{
 		Name:                loadBalancerName,
 		Description:         fmt.Sprintf(`{"kubernetes.io/service-name":"%s"}`, nm.String()),
@@ -124,7 +140,19 @@ func (g *Cloud) ensureInternalLoadBalancer(clusterName, clusterID string, svc *v
 		IPProtocol:          string(protocol),
 		LoadBalancingScheme: string(scheme),
 	}
+	// Given that CreateGCECloud will attempt to determine the subnet based off the network,
+	// the subnetwork should rarely be unknown.
+	if subnetworkURL != "" {
+		expectedFwdRule.Subnetwork = subnetworkURL
+	} else {
+		expectedFwdRule.Network = g.networkURL
+	}
 
+	if options != nil && options.EnableGlobalAccess {
+		expectedFwdRuleIntf = convertToAlphaFwdRule(expectedFwdRule, options.EnableGlobalAccess)
+	} else {
+		expectedFwdRuleIntf = expectedFwdRule
+	}
 	// Given that CreateGCECloud will attempt to determine the subnet based off the network,
 	// the subnetwork should rarely be unknown.
 	if subnetworkURL != "" {
@@ -151,8 +179,18 @@ func (g *Cloud) ensureInternalLoadBalancer(clusterName, clusterID string, svc *v
 	// If we previously deleted the forwarding rule or it never existed, finally create it.
 	if fwdRuleDeleted || existingFwdRule == nil {
 		klog.V(2).Infof("ensureInternalLoadBalancer(%v): creating forwarding rule", loadBalancerName)
-		if err = g.CreateRegionForwardingRule(expectedFwdRule, g.region); err != nil {
-			return nil, err
+		switch expectedFwdRuleIntf.(type) {
+		case *compute.ForwardingRule:
+			if err = g.CreateRegionForwardingRule(expectedFwdRuleIntf.(*compute.ForwardingRule), g.region); err != nil {
+				return nil, err
+			}
+		case *computealpha.ForwardingRule:
+			if err = g.CreateAlphaRegionForwardingRule(expectedFwdRuleIntf.(*computealpha.ForwardingRule), g.region); err != nil {
+				return nil, err
+			}
+			klog.V(2).Infof("ensureInternalLoadBalancer(%v): created alpha forwarding rule", loadBalancerName)
+		default:
+			return nil, fmt.Errorf("No forwarding rule specified for creation")
 		}
 		klog.V(2).Infof("ensureInternalLoadBalancer(%v): created forwarding rule", loadBalancerName)
 	}
@@ -178,6 +216,25 @@ func (g *Cloud) ensureInternalLoadBalancer(clusterName, clusterID string, svc *v
 	status := &v1.LoadBalancerStatus{}
 	status.Ingress = []v1.LoadBalancerIngress{{IP: updatedFwdRule.IPAddress}}
 	return status, nil
+}
+
+func convertToAlphaFwdRule(rule *compute.ForwardingRule, enableGlobalAccess bool) *computealpha.ForwardingRule {
+	if rule == nil {
+		return nil
+	}
+	alphaRule := &computealpha.ForwardingRule {
+		Name:                rule.Name,
+		Description:         rule.Description,
+		IPAddress:           rule.IPAddress,
+		BackendService:      rule.BackendService,
+		Ports:               rule.Ports,
+		IPProtocol:          rule.IPProtocol,
+		LoadBalancingScheme: rule.LoadBalancingScheme,
+		AllowGlobalAccess:   enableGlobalAccess,
+		Subnetwork:          rule.Subnetwork,
+		Network:             rule.Network,
+	}
+	return alphaRule
 }
 
 func (g *Cloud) clearPreviousInternalResources(svc *v1.Service, loadBalancerName string, existingBackendService *compute.BackendService, expectedBSName, expectedHCName string) {
