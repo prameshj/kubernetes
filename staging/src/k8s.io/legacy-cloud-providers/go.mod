@@ -5,7 +5,7 @@ module k8s.io/legacy-cloud-providers
 go 1.12
 
 require (
-	cloud.google.com/go v0.34.0
+	cloud.google.com/go v0.38.0
 	github.com/Azure/azure-sdk-for-go v21.4.0+incompatible
 	github.com/Azure/go-autorest v11.1.2+incompatible
 	github.com/GoogleCloudPlatform/k8s-cloud-provider v0.0.0-20190803003326-2de84d8b30ca
@@ -18,8 +18,8 @@ require (
 	github.com/stretchr/testify v1.3.0
 	github.com/vmware/govmomi v0.20.1
 	golang.org/x/crypto v0.0.0-20190611184440-5c40567a22f8
-	golang.org/x/oauth2 v0.0.0-20190402181905-9f3314589c9a
-	google.golang.org/api v0.0.0-20181220000619-583d854617af
+	golang.org/x/oauth2 v0.0.0-20190604053449-0f29369cfe45
+	google.golang.org/api v0.6.1-0.20190607001116-5213b8090861
 	gopkg.in/gcfg.v1 v1.2.0
 	gopkg.in/warnings.v0 v0.1.1 // indirect
 	k8s.io/api v0.0.0
@@ -35,11 +35,18 @@ require (
 )
 
 replace (
+	cloud.google.com/go => cloud.google.com/go v0.34.0
+	github.com/golang/protobuf => github.com/golang/protobuf v1.2.0
+	github.com/hashicorp/golang-lru => github.com/hashicorp/golang-lru v0.5.0
 	golang.org/x/crypto => golang.org/x/crypto v0.0.0-20181025213731-e84da0312774
+	golang.org/x/lint => golang.org/x/lint v0.0.0-20181217174547-8f45f776aaf1
+	golang.org/x/oauth2 => golang.org/x/oauth2 v0.0.0-20190402181905-9f3314589c9a
 	golang.org/x/sync => golang.org/x/sync v0.0.0-20181108010431-42b317875d0f
 	golang.org/x/sys => golang.org/x/sys v0.0.0-20190209173611-3b5209105503
 	golang.org/x/text => golang.org/x/text v0.3.1-0.20181227161524-e6919f6577db
 	golang.org/x/tools => golang.org/x/tools v0.0.0-20190313210603-aa82965741a9
+	google.golang.org/genproto => google.golang.org/genproto v0.0.0-20170731182057-09f6ed296fc6
+	google.golang.org/grpc => google.golang.org/grpc v1.13.0
 	k8s.io/api => ../api
 	k8s.io/apimachinery => ../apimachinery
 	k8s.io/apiserver => ../apiserver

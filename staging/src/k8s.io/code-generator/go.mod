@@ -20,6 +20,7 @@ require (
 )
 
 replace (
+	github.com/golang/protobuf => github.com/golang/protobuf v1.2.0
 	golang.org/x/crypto => golang.org/x/crypto v0.0.0-20181025213731-e84da0312774
 	golang.org/x/sys => golang.org/x/sys v0.0.0-20190209173611-3b5209105503
 	golang.org/x/text => golang.org/x/text v0.3.1-0.20181227161524-e6919f6577db
