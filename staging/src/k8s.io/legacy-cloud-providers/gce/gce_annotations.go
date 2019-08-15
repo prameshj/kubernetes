@@ -48,6 +48,16 @@ const (
 	// This annotation did not correctly specify "alpha", so both annotations will be checked.
 	deprecatedServiceAnnotationILBBackendShare = "cloud.google.com/load-balancer-backend-share"
 
+	// ServiceAnnotationILBGlobalAccess is annotated on a service with "true" when users
+	// want to access the LoadBalancer globally, and not restricted to the region it is
+	// created in.
+	ServiceAnnotationILBGlobalAccess = "cloud.google.com/load-balancer-global-access"
+
+	// ServiceAnnotationILBSubnet is annotated on a service with the name of the subnetwork
+	// the ILB IP Address should be assigned from. By default, this is the subnetwork that the
+	// cluster is created in.
+	ServiceAnnotationILBSubnet = "cloud.google.com/load-balancer-subnet"
+
 	// NetworkTierAnnotationKey is annotated on a Service object to indicate which
 	// network tier a GCP LB should use. The valid values are "Standard" and
 	// "Premium" (default).
@@ -115,4 +125,27 @@ func GetServiceNetworkTier(service *v1.Service) (cloud.NetworkTier, error) {
 	default:
 		return cloud.NetworkTierDefault, fmt.Errorf("unsupported network tier: %q", v)
 	}
+}
+
+// ILBoptions represents the extra options specified when creating a
+// load balancer.
+type ILBOptions struct {
+	// name of the subnet to assign LoadBalancer VIP from
+	SubnetName string
+	// Indicates whether global access is enabled for the LoadBalancer
+	EnableGlobalAccess bool
+}
+
+func GetLoadBalancerAnnotationGlobalAccess(service *v1.Service) (bool) {
+	if val, exists := service.Annotations[ServiceAnnotationILBGlobalAccess]; exists && val == "true" {
+		return true
+	}
+	return false
+}
+
+func GetLoadBalancerAnnotationSubnet(service *v1.Service) (string) {
+	if val, exists := service.Annotations[ServiceAnnotationILBSubnet]; exists {
+		return val
+	}
+	return ""
 }
