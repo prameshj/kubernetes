@@ -847,11 +847,8 @@ func (g *Cloud) firewallNeedsUpdate(name, serviceName, region, ipAddress string,
 		return true, true, nil
 	}
 	// Make sure the allowed ports match.
-	allowedPorts := make([]string, len(ports))
-	for ix := range ports {
-		allowedPorts[ix] = strconv.Itoa(int(ports[ix].Port))
-	}
-	if !equalStringSets(allowedPorts, fw.Allowed[0].Ports) {
+	_, allowedPortRanges, _ := getPortsAndProtocol(ports)
+	if !equalStringSets(allowedPortRanges, fw.Allowed[0].Ports) {
 		return true, true, nil
 	}
 	// The service controller already verified that the protocol matches on all ports, no need to check.
@@ -985,10 +982,7 @@ func (g *Cloud) updateFirewall(svc *v1.Service, name, region, desc string, sourc
 }
 
 func (g *Cloud) firewallObject(name, region, desc string, sourceRanges utilnet.IPNetSet, ports []v1.ServicePort, hosts []*gceInstance) (*compute.Firewall, error) {
-	allowedPorts := make([]string, len(ports))
-	for ix := range ports {
-		allowedPorts[ix] = strconv.Itoa(int(ports[ix].Port))
-	}
+	_, allowedPortRanges, _ := getPortsAndProtocol(ports)
 	// If the node tags to be used for this cluster have been predefined in the
 	// provider config, just use them. Otherwise, invoke computeHostTags method to get the tags.
 	hostTags := g.nodeTags
@@ -1013,7 +1007,7 @@ func (g *Cloud) firewallObject(name, region, desc string, sourceRanges utilnet.I
 				// mixed TCP and UDP ports. It should be possible to use a
 				// single firewall rule for both a TCP and UDP lb.
 				IPProtocol: strings.ToLower(string(ports[0].Protocol)),
-				Ports:      allowedPorts,
+				Ports:      allowedPortRanges,
 			},
 		},
 	}

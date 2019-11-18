@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"net"
 	"sort"
+	"strconv"
 	"strings"
 
 	"k8s.io/api/core/v1"
@@ -220,4 +221,64 @@ func getSvcScheme(svc *v1.Service) cloud.LbScheme {
 		return cloud.SchemeInternal
 	}
 	return cloud.SchemeExternal
+}
+
+// getPortsAndProtocol returns the service ports, port ranges and protocol.
+func getPortsAndProtocol(svcPorts []v1.ServicePort) (ports []string, portRanges []string, protocol v1.Protocol) {
+	if len(svcPorts) == 0 {
+		return []string{}, []string{}, v1.ProtocolUDP
+	}
+
+	// GCP doesn't support multiple protocols for a single load balancer
+	protocol = svcPorts[0].Protocol
+	portInts := []int{}
+	for _, p := range svcPorts {
+		ports = append(ports, strconv.Itoa(int(p.Port)))
+		portInts = append(portInts, int(p.Port))
+	}
+
+	return ports, getPortRanges(portInts), protocol
+}
+
+// getPortRanges returns a list of port ranges, given a list of ports.
+func getPortRanges(ports []int) (ranges []string) {
+	if len(ports) < 1 {
+		return ranges
+	}
+	sort.Ints(ports)
+
+	start := ports[0]
+	prev := ports[0]
+	for ix, current := range ports {
+		switch {
+		case current == prev:
+			// Loop over duplicates, except if the end of list is reached.
+			if ix == len(ports)-1 {
+				if start == current {
+					ranges = append(ranges, fmt.Sprintf("%d", current))
+				} else {
+					ranges = append(ranges, fmt.Sprintf("%d-%d", start, current))
+				}
+			}
+		case current == prev+1:
+			// continue the streak, create the range if this is the last element in the list.
+			if ix == len(ports)-1 {
+				ranges = append(ranges, fmt.Sprintf("%d-%d", start, current))
+			}
+		default:
+			// current is not prev + 1, streak is broken. Construct the range and handle last element case.
+			if start == prev {
+				ranges = append(ranges, fmt.Sprintf("%d", prev))
+			} else {
+				ranges = append(ranges, fmt.Sprintf("%d-%d", start, prev))
+			}
+			if ix == len(ports)-1 {
+				ranges = append(ranges, fmt.Sprintf("%d", current))
+			}
+			// reset start element
+			start = current
+		}
+		prev = current
+	}
+	return ranges
 }
